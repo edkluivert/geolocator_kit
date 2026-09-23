@@ -1,0 +1,47 @@
+name: geolocator_kit
+description: >-
+  Geolocation for DartNative: the geolocator API (Geolocator, Position,
+  LocationSettings, AndroidSettings, AppleSettings, permission and service
+  status streams) on CLLocationManager and the fused location provider,
+  over FFI with no platform channels.
+version: 0.1.0
+repository: https://github.com/edkluivert/geolocator_kit
+topics:
+  - dartnative
+  - geolocation
+  - location
+  - gps
+
+environment:
+  sdk: ^3.11.0
+
+# `dn pub get` resolves dartnative from the installed SDK.
+dependencies:
+  dartnative: ^1.0.0
+  ffi: ^2.1.0
+  meta: ^1.16.0
+  plugin_platform_interface: ^2.1.8
+  uuid: ^4.5.1
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.32.0
+
+# DartNative plugin declaration (docs/plugin_development.md §10/§11):
+# iOS links the Swift sources in ios/ as an FFI plugin; Android registers
+# GeolocatorKitPlugin, which loads libgeolocator_kit.so so JNI_OnLoad runs.
+# The registrant block makes `dn pub get` emit the loadSymbols() call into
+# the app's lib/dartnative_plugin_registrant.dart.
+dartnative:
+  plugin:
+    platforms:
+      ios:
+        ffiPlugin: true
+      android:
+        package: com.kluivert.geolocatorkit
+        pluginClass: GeolocatorKitPlugin
+  registrant:
+    imports:
+      - package:geolocator_kit/geolocator_kit.dart
+    calls:
+      - GeolocatorKitFFIBindings.loadSymbols();

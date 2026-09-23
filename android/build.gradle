@@ -1,0 +1,65 @@
+group 'com.kluivert.geolocatorkit'
+version '0.1.0'
+
+buildscript {
+    ext.kotlin_version = '2.2.20'
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.11.1'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+android {
+    namespace 'com.kluivert.geolocatorkit'
+    compileSdk 36
+    // Same NDK as the DartNative SDK ships, so the bundled
+    // libgeolocator_kit.so matches the engine's.
+    ndkVersion '28.2.13676358'
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
+    defaultConfig {
+        // DartNative's minimum; API 26+ paths are guarded at runtime.
+        minSdk 24
+    }
+
+    // libgeolocator_kit.so: the C entry points Dart looks up over FFI,
+    // bridged to GeolocatorKitBridge.kt over JNI.
+    externalNativeBuild {
+        cmake {
+            path 'src/main/cpp/CMakeLists.txt'
+        }
+    }
+}
+
+dependencies {
+    // The framework's DNAppContext is reached reflectively in
+    // GeolocatorKitBridge, so this module builds without it.
+    implementation 'com.google.android.gms:play-services-location:21.3.0'
+    implementation 'androidx.core:core:1.16.0'
+}

@@ -1,0 +1,9 @@
+include: package:lints/recommended.yaml
+
+# DartNative widget assists and warnings. Published on dartpub.dev, so the
+# hosted line is required: the analysis server resolves plugins with plain
+# `dart pub`, which only knows pub.dev.
+plugins:
+  assists_kit:
+    hosted: https://dartpub.dev
+    version: ^0.1.4
