@@ -46,6 +46,10 @@ class _GeolocatorExampleState extends State<GeolocatorExample> {
   // at startup and mirrors the log to the console, for simulator/emulator
   // runs that cannot be tapped from a terminal.
   static const bool _autorun = bool.fromEnvironment('GEOLOCATOR_KIT_AUTORUN');
+  // How long the autorun keeps the Android foreground-service stream open,
+  // so the app can be sent to the background while it runs.
+  static const int _foregroundHoldSeconds =
+      int.fromEnvironment('GEOLOCATOR_KIT_FOREGROUND_HOLD', defaultValue: 8);
 
   @override
   void initState() {
@@ -71,7 +75,7 @@ class _GeolocatorExampleState extends State<GeolocatorExample> {
     if (Platform.isAndroid) {
       setState(() => _foreground = true);
       _togglePositionStream(true);
-      await Future<void>.delayed(const Duration(seconds: 8));
+      await Future<void>.delayed(const Duration(seconds: _foregroundHoldSeconds));
       _togglePositionStream(false);
       setState(() => _foreground = false);
     }
@@ -238,6 +242,7 @@ class _GeolocatorExampleState extends State<GeolocatorExample> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+
                     _button('Check permission',
                         () async => (await Geolocator.checkPermission()).name),
                     _button('Request permission',

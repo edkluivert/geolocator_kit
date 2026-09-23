@@ -200,7 +200,12 @@ GeolocatorPlatform.instance = FakeGeolocator();
 the results, including the foreground service on Android and temporary
 full accuracy on iOS. Grant the permission, then use the simulator's
 location menu (`xcrun simctl location <udid> set <lat>,<lon>`) or
-`adb emu geo fix <lon> <lat>` to move.
+`adb emu geo fix <lon> <lat>` to move. Run it with
+`--dart-define=GEOLOCATOR_KIT_AUTORUN=true` to walk through every call at
+startup and mirror the log to the console; on Android
+`--dart-define=GEOLOCATOR_KIT_FOREGROUND_HOLD=<seconds>` keeps the
+foreground-service stream open that long, so the app can be sent to the
+background while it runs.
 
 ## License
 
