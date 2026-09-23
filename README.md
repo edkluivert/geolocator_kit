@@ -35,7 +35,7 @@ written against `package:geolocator/geolocator.dart` compiles against
 dependencies:
   geolocator_kit:
     hosted: https://dartpub.dev
-    version: ^0.1.0
+    version: ^0.1.1
 ```
 
 Then `dn pub get`: it regenerates `lib/dartnative_plugin_registrant.dart`

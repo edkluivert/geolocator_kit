@@ -4,7 +4,7 @@ description: >-
   LocationSettings, AndroidSettings, AppleSettings, permission and service
   status streams) on CLLocationManager and the fused location provider,
   over FFI with no platform channels.
-version: 0.1.0
+version: 0.1.1
 repository: https://github.com/edkluivert/geolocator_kit
 topics:
   - dartnative
