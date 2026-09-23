@@ -1,4 +1,3 @@
-// Ported from geolocator_apple 2.3.14 (MIT, Baseflow).
 import '../platform_interface/models/location_settings.dart';
 import 'activity_type.dart';
 

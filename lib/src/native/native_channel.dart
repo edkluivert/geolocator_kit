@@ -1,9 +1,8 @@
-/// The method/event channel shape geolocator's Dart side was written
-/// against, without Flutter's platform channels.
+/// The method/event channel shape geolocator's Dart side expects, minus
+/// Flutter's platform channels.
 ///
-/// [GeolocatorFfi] talks to one [GeolocatorNativeChannel]; the production
-/// implementation is [FfiGeolocatorChannel] (JSON over FFI with a
-/// hot-restart safe dispatcher), tests substitute a fake.
+/// [GeolocatorFfi] talks to one [GeolocatorNativeChannel]. In the app that
+/// is [FfiGeolocatorChannel] (JSON over FFI); tests plug in a fake.
 library;
 
 import 'dart:async';

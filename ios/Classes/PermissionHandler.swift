@@ -1,4 +1,4 @@
-// Ported from geolocator_apple 2.3.14 PermissionHandler.m (MIT, Baseflow).
+// Checks and requests location authorization.
 
 import CoreLocation
 import Foundation

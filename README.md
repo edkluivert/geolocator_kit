@@ -185,6 +185,14 @@ GeolocatorPlatform.instance = FakeGeolocator();
   `WebSettings` is kept for source compatibility only.
 - A `getCurrentPosition` that hits its `timeLimit` cancels the native
   request on iOS too (the plugin only cancels on Android).
+- On iOS a one-shot request is answered by its own location manager, and
+  several overlapping `getCurrentPosition` calls all receive the fix. The
+  plugin lets a running stream answer the one-shot and only keeps the
+  latest overlapping caller.
+- On iOS `Position.floor` is reported for level 0 as well; the plugin
+  leaves the ground floor as `null`.
+- A native listener left over from a previous hot-restart session is
+  stopped when the new session starts.
 
 ## Example
 

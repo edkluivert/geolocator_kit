@@ -1,5 +1,4 @@
-// Ported from geolocator 14.0.3 (MIT, Baseflow). `defaultTargetPlatform`
-// became `Platform.isAndroid`.
+// The geolocator plugin's public entry point, as-is.
 import 'dart:async';
 import 'dart:io' show Platform;
 

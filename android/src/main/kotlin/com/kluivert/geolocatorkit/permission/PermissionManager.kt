@@ -14,7 +14,7 @@ import com.kluivert.geolocatorkit.errors.ErrorCodes
 import com.kluivert.geolocatorkit.errors.PermissionUndefinedException
 
 /**
- * Port of geolocator's PermissionManager. The permission dialog is shown by
+ * Location permission checks and requests. The dialog itself is shown by
  * [GeolocatorKitProxyActivity], which hands the result to
  * [onRequestPermissionsResult].
  */
@@ -96,6 +96,14 @@ class PermissionManager private constructor() {
             Log.e(TAG, "Could not launch the permission request: ${e.message}")
             errorCallback(ErrorCodes.activityMissing)
         }
+    }
+
+    /** The dialog went away without a result: report `denied` and unblock later requests. */
+    fun onRequestCancelled() {
+        val resultCallback = this.resultCallback
+        this.resultCallback = null
+        this.errorCallback = null
+        resultCallback?.invoke(LocationPermission.denied)
     }
 
     fun onRequestPermissionsResult(

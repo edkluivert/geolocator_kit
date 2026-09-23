@@ -1,4 +1,4 @@
-// Ported from geolocator_apple 2.3.14 Utils/*.m (MIT, Baseflow).
+// Maps CLLocation values and Dart enum indices in both directions.
 
 import CoreLocation
 import Foundation

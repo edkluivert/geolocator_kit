@@ -1,6 +1,5 @@
-// Ported from geolocator_web 4.1.4 (MIT, Baseflow). Kept for API parity with
-// the geolocator package; DartNative has no web target, so on iOS and
-// Android only the inherited fields are used.
+// Kept so code written for the geolocator package keeps compiling.
+// DartNative has no web target, so only the inherited fields matter.
 import '../platform_interface/models/location_settings.dart';
 
 /// Represents different Web specific settings with which you can set a value

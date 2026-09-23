@@ -1,6 +1,5 @@
-// Ported from geolocator_apple 2.3.14 LocationServiceStreamHandler.m (MIT,
-// Baseflow). Toggling Location Services changes the authorization, which
-// is the moment to re-read `locationServicesEnabled`.
+// Toggling Location Services changes the authorization status, which is the
+// moment to re-read locationServicesEnabled.
 
 import CoreLocation
 import Foundation

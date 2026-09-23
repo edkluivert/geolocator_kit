@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
+import androidx.core.app.ServiceCompat
 import com.kluivert.geolocatorkit.location.BackgroundNotification
 import com.kluivert.geolocatorkit.location.ForegroundNotificationOptions
 import com.kluivert.geolocatorkit.location.GeolocationManager
@@ -18,7 +19,7 @@ import com.kluivert.geolocatorkit.location.LocationClient
 import com.kluivert.geolocatorkit.location.LocationMapper
 import com.kluivert.geolocatorkit.location.LocationOptions
 
-/** Port of GeolocatorLocationService: position updates behind a foreground notification. */
+/** Position updates behind a foreground notification. */
 class GeolocatorKitLocationService : Service() {
     private val binder = LocalBinder(this)
 
@@ -113,7 +114,12 @@ class GeolocatorKitLocationService : Service() {
             )
             backgroundNotification = notification
             notification.updateChannel(options.notificationChannelName)
-            startForeground(ONGOING_NOTIFICATION_ID, notification.build())
+            val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+            } else {
+                0
+            }
+            ServiceCompat.startForeground(this, ONGOING_NOTIFICATION_ID, notification.build(), type)
             isForeground = true
         }
         obtainWakeLocks(options)

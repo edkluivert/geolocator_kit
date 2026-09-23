@@ -1,4 +1,3 @@
-// Ported from geolocator_android 5.0.3 (MIT, Baseflow).
 import '../platform_interface/models/location_settings.dart';
 import 'foreground_settings.dart';
 

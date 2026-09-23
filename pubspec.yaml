@@ -27,11 +27,10 @@ dev_dependencies:
   lints: ^6.0.0
   test: ^1.32.0
 
-# DartNative plugin declaration (docs/plugin_development.md §10/§11):
-# iOS links the Swift sources in ios/ as an FFI plugin; Android registers
+# iOS links the Swift sources in ios/ as an FFI plugin. Android registers
 # GeolocatorKitPlugin, which loads libgeolocator_kit.so so JNI_OnLoad runs.
-# The registrant block makes `dn pub get` emit the loadSymbols() call into
-# the app's lib/dartnative_plugin_registrant.dart.
+# The registrant block makes `dn pub get` add the loadSymbols() call to the
+# app's lib/dartnative_plugin_registrant.dart.
 dartnative:
   plugin:
     platforms:

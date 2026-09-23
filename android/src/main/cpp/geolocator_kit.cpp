@@ -1,4 +1,4 @@
-// geolocator_kit — Android FFI entry points.
+// Android entry points for geolocator_kit.
 //
 // Dart calls the exported GeolocatorKit* functions below (DynamicLibrary.open
 // "libgeolocator_kit.so"); they forward to the Kotlin object
@@ -47,7 +47,7 @@ static void clearException(JNIEnv* env) {
   }
 }
 
-// ── Kotlin → Dart (registered natives) ──────────────────────────────────
+// Kotlin -> Dart (registered natives)
 
 // Reads the framework's restart counter from the core library.
 static jlong nativeIsolateGen(JNIEnv*, jclass) {
@@ -56,15 +56,24 @@ static jlong nativeIsolateGen(JNIEnv*, jclass) {
   return fn ? static_cast<jlong>(fn()) : 0;
 }
 
-// Invokes the Dart dispatcher pointer. Dart copies the string during the
-// call, so the UTF chars can be released right after.
+// Invokes the Dart dispatcher pointer. The payload travels as UTF-8 bytes
+// (JNI strings are Modified UTF-8, which Dart would reject for emoji and
+// other supplementary characters). Dart copies the string during the call.
 static void nativeDeliver(JNIEnv* env, jclass, jlong ptr, jlong token,
-                          jint type, jstring payload) {
+                          jint type, jbyteArray payload) {
   using Dispatch = void (*)(int64_t, int32_t, const char*);
   if (ptr == 0) return;
-  const char* cStr = payload ? env->GetStringUTFChars(payload, nullptr) : nullptr;
-  reinterpret_cast<Dispatch>(ptr)(token, type, cStr ? cStr : "null");
-  if (payload && cStr) env->ReleaseStringUTFChars(payload, cStr);
+  if (payload == nullptr) {
+    reinterpret_cast<Dispatch>(ptr)(token, type, "null");
+    return;
+  }
+  jsize len = env->GetArrayLength(payload);
+  char* buf = static_cast<char*>(malloc(static_cast<size_t>(len) + 1));
+  if (buf == nullptr) return;
+  env->GetByteArrayRegion(payload, 0, len, reinterpret_cast<jbyte*>(buf));
+  buf[len] = '\0';
+  reinterpret_cast<Dispatch>(ptr)(token, type, buf);
+  free(buf);
 }
 
 extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
@@ -83,17 +92,14 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
   env->DeleteLocalRef(local);
 
   g_setDispatcher = env->GetStaticMethodID(g_bridge, "setDispatcher", "(J)V");
-  g_invoke = env->GetStaticMethodID(
-      g_bridge, "invoke", "(JLjava/lang/String;Ljava/lang/String;)I");
-  g_listen = env->GetStaticMethodID(
-      g_bridge, "listen", "(JLjava/lang/String;Ljava/lang/String;)I");
+  g_invoke = env->GetStaticMethodID(g_bridge, "invoke", "(J[B[B)I");
+  g_listen = env->GetStaticMethodID(g_bridge, "listen", "(J[B[B)I");
   g_cancel = env->GetStaticMethodID(g_bridge, "cancel", "(J)I");
   clearException(env);
 
   static const JNINativeMethod methods[] = {
       {"nativeIsolateGen", "()J", reinterpret_cast<void*>(nativeIsolateGen)},
-      {"nativeDeliver", "(JJILjava/lang/String;)V",
-       reinterpret_cast<void*>(nativeDeliver)},
+      {"nativeDeliver", "(JJI[B)V", reinterpret_cast<void*>(nativeDeliver)},
   };
   if (env->RegisterNatives(g_bridge, methods, 2) != JNI_OK) {
     LOGE("RegisterNatives failed");
@@ -103,7 +109,7 @@ extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void*) {
   return JNI_VERSION_1_6;
 }
 
-// ── Dart → Kotlin (exported for dart:ffi) ───────────────────────────────
+// Dart -> Kotlin (exported for dart:ffi)
 
 EXPORT void GeolocatorKitSetDispatcher(int64_t ptr) {
   JNIEnv* env = envForThisThread();
@@ -112,12 +118,26 @@ EXPORT void GeolocatorKitSetDispatcher(int64_t ptr) {
   clearException(env);
 }
 
+// Wraps a UTF-8 C string as a Java byte array (Kotlin decodes it as UTF-8).
+static jbyteArray bytesOf(JNIEnv* env, const char* s) {
+  if (s == nullptr) s = "";
+  jsize len = static_cast<jsize>(strlen(s));
+  jbyteArray arr = env->NewByteArray(len);
+  if (arr == nullptr) return nullptr;
+  env->SetByteArrayRegion(arr, 0, len, reinterpret_cast<const jbyte*>(s));
+  return arr;
+}
+
 static int32_t callStringString(jmethodID method, int64_t token,
                                 const char* a, const char* b) {
   JNIEnv* env = envForThisThread();
   if (env == nullptr || method == nullptr) return -2;
-  jstring ja = env->NewStringUTF(a ? a : "");
-  jstring jb = env->NewStringUTF(b ? b : "null");
+  jbyteArray ja = bytesOf(env, a);
+  jbyteArray jb = bytesOf(env, b ? b : "null");
+  if (ja == nullptr || jb == nullptr) {
+    clearException(env);
+    return -2;
+  }
   jint rc = env->CallStaticIntMethod(g_bridge, method, static_cast<jlong>(token),
                                      ja, jb);
   env->DeleteLocalRef(ja);

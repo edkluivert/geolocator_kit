@@ -1,6 +1,5 @@
-// Ported from geolocator_android 5.0.3 / geolocator_apple 2.3.14 (MIT,
-// Baseflow): the two method-channel implementations merged into one class
-// over [GeolocatorNativeChannel].
+// What geolocator_android and geolocator_apple do on their method channels,
+// in one class over the FFI channel.
 import 'dart:async';
 import 'dart:io' show Platform;
 

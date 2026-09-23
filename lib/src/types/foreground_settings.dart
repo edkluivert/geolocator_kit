@@ -1,5 +1,5 @@
-// Ported from geolocator_android 5.0.3 (MIT, Baseflow). `Color` is
-// DartNative's (`value` is the ARGB int, like Flutter's `toARGB32()`).
+// `Color` here is DartNative's; `value` is the ARGB int, like Flutter's
+// `toARGB32()`.
 import 'package:dartnative/dartnative.dart' show Color;
 
 /// Uniquely identifies an Android resource.

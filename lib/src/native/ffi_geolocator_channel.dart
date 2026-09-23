@@ -6,9 +6,9 @@ import '../platform_interface/errors/platform_exception.dart';
 import 'geolocator_kit_ffi_bindings.dart';
 import 'native_channel.dart';
 
-/// [GeolocatorNativeChannel] over [GeolocatorKitFFIBindings]: arguments and
-/// replies travel as JSON strings, every reply is delivered asynchronously
-/// on the main thread by the native side.
+/// [GeolocatorNativeChannel] over [GeolocatorKitFFIBindings]. Arguments and
+/// replies travel as JSON strings; native delivers every reply on the main
+/// thread, never inside the call itself.
 class FfiGeolocatorChannel implements GeolocatorNativeChannel {
   const FfiGeolocatorChannel();
 
@@ -21,12 +21,17 @@ class FfiGeolocatorChannel implements GeolocatorNativeChannel {
       GeolocatorKitFFIBindings.removeHandler(token);
       if (completer.isCompleted) return;
       geolocatorKitLog('$method -> type=$type $payload');
-      if (type == GeolocatorKitEventType.error) {
-        completer.completeError(_decodeError(payload));
-      } else {
-        completer.complete(_decode(payload));
+      // This runs inside a native callback, which must not throw.
+      try {
+        if (type == GeolocatorKitEventType.error) {
+          completer.completeError(_decodeError(payload));
+        } else {
+          completer.complete(_decode(payload));
+        }
+      } catch (e) {
+        completer.completeError(_decodeFailure(method, e));
       }
-    });
+    }, oneShot: true);
     final rc = GeolocatorKitFFIBindings.invoke(token, method, _encode(arguments));
     geolocatorKitLog('invoke $method ${_encode(arguments)} rc=$rc');
     if (rc != 0) {
@@ -46,10 +51,14 @@ class FfiGeolocatorChannel implements GeolocatorNativeChannel {
         final t = GeolocatorKitFFIBindings.registerHandler((type, payload) {
           if (controller.isClosed) return;
           geolocatorKitLog('$channel event type=$type $payload');
-          if (type == GeolocatorKitEventType.error) {
-            controller.addError(_decodeError(payload));
-          } else {
-            controller.add(_decode(payload));
+          try {
+            if (type == GeolocatorKitEventType.error) {
+              controller.addError(_decodeError(payload));
+            } else {
+              controller.add(_decode(payload));
+            }
+          } catch (e) {
+            controller.addError(_decodeFailure(channel, e));
           }
         });
         token = t;
@@ -99,6 +108,12 @@ class FfiGeolocatorChannel implements GeolocatorNativeChannel {
     }
     return PlatformException(code: 'UNKNOWN', message: payload);
   }
+
+  static PlatformException _decodeFailure(String what, Object error) =>
+      PlatformException(
+        code: 'DECODE_ERROR',
+        message: 'Could not decode the native reply to "$what": $error',
+      );
 
   static PlatformException _unavailable(int rc, String what) => PlatformException(
         code: rc == -1 ? 'NATIVE_UNAVAILABLE' : 'NOT_IMPLEMENTED',

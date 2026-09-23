@@ -12,39 +12,43 @@ object LocationMapper {
     fun toHashMap(location: Location?): Map<String, Any?>? {
         if (location == null) return null
         val position = HashMap<String, Any?>()
-        position["latitude"] = location.latitude
-        position["longitude"] = location.longitude
+        // JSON has no NaN or infinity; a non-finite reading is left out so it
+        // reads as "not measured" on the Dart side, like a missing key.
+        fun put(key: String, value: Double) {
+            if (value.isFinite()) position[key] = value
+        }
+        put("latitude", location.latitude)
+        put("longitude", location.longitude)
         position["timestamp"] = location.time
         position["is_mocked"] = isMocked(location)
-        if (location.hasAltitude()) position["altitude"] = location.altitude
+        if (location.hasAltitude()) put("altitude", location.altitude)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && location.hasVerticalAccuracy()) {
-            position["altitude_accuracy"] = location.verticalAccuracyMeters.toDouble()
+            put("altitude_accuracy", location.verticalAccuracyMeters.toDouble())
         }
-        if (location.hasAccuracy()) position["accuracy"] = location.accuracy.toDouble()
-        if (location.hasBearing()) position["heading"] = location.bearing.toDouble()
+        if (location.hasAccuracy()) put("accuracy", location.accuracy.toDouble())
+        if (location.hasBearing()) put("heading", location.bearing.toDouble())
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && location.hasBearingAccuracy()) {
-            position["heading_accuracy"] = location.bearingAccuracyDegrees.toDouble()
+            put("heading_accuracy", location.bearingAccuracyDegrees.toDouble())
         }
-        if (location.hasSpeed()) position["speed"] = location.speed.toDouble()
+        if (location.hasSpeed()) put("speed", location.speed.toDouble())
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && location.hasSpeedAccuracy()) {
-            position["speed_accuracy"] = location.speedAccuracyMetersPerSecond.toDouble()
+            put("speed_accuracy", location.speedAccuracyMetersPerSecond.toDouble())
         }
         val extras = location.extras
         if (extras != null) {
             if (extras.containsKey(NmeaClient.NMEA_ALTITUDE_EXTRA)) {
-                position["altitude"] = extras.getDouble(NmeaClient.NMEA_ALTITUDE_EXTRA)
+                put("altitude", extras.getDouble(NmeaClient.NMEA_ALTITUDE_EXTRA))
             }
             if (extras.containsKey(NmeaClient.GNSS_SATELLITE_COUNT_EXTRA)) {
-                position["gnss_satellite_count"] = extras.getDouble(NmeaClient.GNSS_SATELLITE_COUNT_EXTRA)
+                put("gnss_satellite_count", extras.getDouble(NmeaClient.GNSS_SATELLITE_COUNT_EXTRA))
             }
             if (extras.containsKey(NmeaClient.GNSS_SATELLITES_USED_IN_FIX_EXTRA)) {
-                position["gnss_satellites_used_in_fix"] =
-                    extras.getDouble(NmeaClient.GNSS_SATELLITES_USED_IN_FIX_EXTRA)
+                put("gnss_satellites_used_in_fix", extras.getDouble(NmeaClient.GNSS_SATELLITES_USED_IN_FIX_EXTRA))
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && location.hasMslAltitude()) {
-                position["altitude"] = location.mslAltitudeMeters
+                put("altitude", location.mslAltitudeMeters)
                 if (location.hasMslAltitudeAccuracy()) {
-                    position["altitude_accuracy"] = location.mslAltitudeAccuracyMeters.toDouble()
+                    put("altitude_accuracy", location.mslAltitudeAccuracyMeters.toDouble())
                 }
             }
         }

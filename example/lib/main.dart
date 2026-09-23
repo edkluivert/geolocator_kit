@@ -1,6 +1,5 @@
-// geolocator_kit example: the geolocator plugin's example screen on
-// DartNative — permission checks, one-shot position, position stream and
-// location service status, with a log of everything the plugin reports.
+// geolocator_kit example: permission checks, one-shot position, position
+// stream and location service status, with a log of everything reported.
 //
 //   dn run -d <ios-simulator-id>
 //   dn run -d <android-emulator-id>

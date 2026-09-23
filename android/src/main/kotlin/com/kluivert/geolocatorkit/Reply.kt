@@ -4,13 +4,19 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * The reply side of one Dart call or stream, in the shape of Flutter's
- * `MethodChannel.Result` / `EventChannel.EventSink` so the ported handlers
- * read like the originals. Everything is JSON on the wire.
+ * The reply side of one Dart call or stream, shaped like Flutter's
+ * `MethodChannel.Result` and `EventChannel.EventSink` so the handlers read
+ * like the originals. Everything is JSON on the wire.
  */
 class Reply(private val token: Long) {
     fun success(value: Any?) {
-        GeolocatorKitBridge.fireToDart(token, GeolocatorKitBridge.TYPE_SUCCESS, encode(value))
+        val payload = try {
+            encode(value)
+        } catch (e: Exception) {
+            error("ERROR_WHILE_ACQUIRING_POSITION", "Could not encode the native reply: ${e.message}", null)
+            return
+        }
+        GeolocatorKitBridge.fireToDart(token, GeolocatorKitBridge.TYPE_SUCCESS, payload)
     }
 
     fun error(code: String, message: String?, details: Any?) {

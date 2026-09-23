@@ -1,4 +1,4 @@
-// Ported from geolocator_apple 2.3.14 LocationAccuracyHandler.m (MIT, Baseflow).
+// Reads and requests the precise/reduced accuracy authorization.
 
 import CoreLocation
 import Foundation

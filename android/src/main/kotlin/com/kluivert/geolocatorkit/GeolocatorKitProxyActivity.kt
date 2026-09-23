@@ -17,10 +17,14 @@ import com.kluivert.geolocatorkit.permission.PermissionManager
  * the Activity that receives them.
  */
 class GeolocatorKitProxyActivity : Activity() {
+    private var mode: String? = null
+    private var delivered = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        mode = intent.getStringExtra(EXTRA_MODE)
         if (savedInstanceState != null) return
-        when (intent.getStringExtra(EXTRA_MODE)) {
+        when (mode) {
             MODE_PERMISSIONS -> {
                 val permissions = intent.getStringArrayExtra(EXTRA_PERMISSIONS)
                 val requestCode = intent.getIntExtra(EXTRA_REQUEST_CODE, 0)
@@ -58,6 +62,7 @@ class GeolocatorKitProxyActivity : Activity() {
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        delivered = true
         PermissionManager.getInstance().onRequestPermissionsResult(
             this, requestCode, permissions.map { it }.toTypedArray(), grantResults,
         )
@@ -67,8 +72,22 @@ class GeolocatorKitProxyActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        delivered = true
         GeolocationManager.getInstance().onActivityResult(requestCode, resultCode)
         finish()
+    }
+
+    override fun onDestroy() {
+        // Finished without a result (killed, restored, or an early exit):
+        // release the pending request so the next one is not refused.
+        if (!delivered && !isChangingConfigurations) {
+            when (mode) {
+                MODE_PERMISSIONS -> PermissionManager.getInstance().onRequestCancelled()
+                MODE_RESOLUTION -> GeolocationManager.getInstance()
+                    .onActivityResult(intent.getIntExtra(EXTRA_REQUEST_CODE, 0), RESULT_CANCELED)
+            }
+        }
+        super.onDestroy()
     }
 
     companion object {

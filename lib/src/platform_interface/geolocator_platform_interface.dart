@@ -1,7 +1,5 @@
-// Ported from geolocator_platform_interface 4.3.0 (MIT, Baseflow). Changes:
-// the default instance is the FFI-backed [GeolocatorFfi] instead of the
-// method-channel implementation, and `radians`/`degrees` from vector_math
-// are inlined.
+// Same as geolocator_platform_interface, except the default instance is the
+// FFI implementation and the two vector_math helpers are inlined.
 import 'dart:async';
 import 'dart:math';
 

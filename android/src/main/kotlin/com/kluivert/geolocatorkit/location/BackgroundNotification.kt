@@ -54,6 +54,10 @@ class BackgroundNotification(
         if (iconId == 0) {
             iconId = getDrawableId("ic_launcher", "mipmap")
         }
+        if (iconId == 0) {
+            // A notification without a valid small icon is rejected by the system.
+            iconId = android.R.drawable.ic_menu_mylocation
+        }
         builder = builder
             .setContentTitle(options.notificationTitle)
             .setSmallIcon(iconId)

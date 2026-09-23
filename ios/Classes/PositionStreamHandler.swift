@@ -1,4 +1,4 @@
-// Ported from geolocator_apple 2.3.14 PositionStreamHandler.m (MIT, Baseflow).
+// The position stream: forwards GeolocationHandler updates to one sink.
 
 import CoreLocation
 import Foundation

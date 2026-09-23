@@ -27,11 +27,10 @@ import com.kluivert.geolocatorkit.permission.PermissionManager
 import com.kluivert.geolocatorkit.utils.Utils
 
 /**
- * Kotlin side of geolocator_kit: the method-call, position-stream and
- * service-status handlers of geolocator_android merged into one object,
- * addressed from geolocator_kit.cpp (Dart → native) and answering through
- * [fireToDart] (one dispatcher pointer, one generation stamp, re-checked
- * before every delivery, always on the main thread).
+ * Kotlin side of geolocator_kit. Handles the method calls, the position
+ * stream and the service status stream, called from geolocator_kit.cpp and
+ * answering through [fireToDart]: one dispatcher pointer, one generation
+ * stamp checked before every delivery, always on the main thread.
  */
 object GeolocatorKitBridge {
     private const val TAG = "GeolocatorKit"
@@ -57,37 +56,40 @@ object GeolocatorKitBridge {
     private val geolocationManager = GeolocationManager.getInstance()
     private val locationAccuracyManager = LocationAccuracyManager.getInstance()
 
-    // ── Dispatcher slot ────────────────────────────────────────────────
+    // Dispatcher slot
 
     @Volatile private var dispatcherPtr: Long = 0L
     @Volatile private var dispatcherGen: Long = 0L
     private val main = Handler(Looper.getMainLooper())
 
+    private var hadSession = false
+
+    /**
+     * Called once per Dart session. A second call means the Dart side was
+     * restarted: nothing listens to the old tokens any more, so whatever
+     * they started is stopped first, before the new pointer is stored.
+     */
     @JvmStatic
     fun setDispatcher(ptr: Long) {
-        val newSession = dispatcherPtr != 0L && dispatcherPtr != ptr
+        if (hadSession) resetAll()
+        hadSession = true
         dispatcherPtr = ptr
-        dispatcherGen = nativeIsolateGen() // capture the counter WITH the ptr
-        if (newSession) {
-            // A fresh Dart session (hot restart): nothing on the Dart side
-            // listens to the old tokens any more, stop what they started.
-            main.post { resetAll() }
-        }
+        dispatcherGen = nativeIsolateGen() // capture the counter with the pointer
     }
 
     @JvmStatic external fun nativeIsolateGen(): Long
-    @JvmStatic external fun nativeDeliver(ptr: Long, token: Long, type: Int, payload: String)
+    @JvmStatic external fun nativeDeliver(ptr: Long, token: Long, type: Int, payload: ByteArray)
 
     fun fireToDart(token: Long, type: Int, payload: String) {
         main.post {
-            if (dispatcherGen != nativeIsolateGen()) return@post // restarted → drop
+            if (dispatcherGen != nativeIsolateGen()) return@post // Dart restarted, drop it
             val ptr = dispatcherPtr
             if (ptr == 0L) return@post
-            nativeDeliver(ptr, token, type, payload)
+            nativeDeliver(ptr, token, type, payload.toByteArray(Charsets.UTF_8))
         }
     }
 
-    // ── Engine lifecycle ───────────────────────────────────────────────
+    // Engine lifecycle
 
     private var foregroundLocationService: GeolocatorKitLocationService? = null
     private var serviceBound = false
@@ -146,15 +148,16 @@ object GeolocatorKitBridge {
         pendingCurrentPositionLocationClients.clear()
     }
 
-    // ── Method calls (port of MethodCallHandlerImpl) ───────────────────
+    // Method calls
 
     private val pendingCurrentPositionLocationClients = HashMap<String, LocationClient>()
 
     /** Returns 0 when the call was accepted (the reply arrives later), 2 for an unknown method. */
     @JvmStatic
-    fun invoke(token: Long, method: String, argumentsJson: String): Int {
+    fun invoke(token: Long, methodBytes: ByteArray, argumentsBytes: ByteArray): Int {
+        val method = String(methodBytes, Charsets.UTF_8)
         val reply = Reply(token)
-        val arguments = Reply.decodeMap(argumentsJson)
+        val arguments = Reply.decodeMap(String(argumentsBytes, Charsets.UTF_8))
         try {
             when (method) {
                 "checkPermission" -> onCheckPermission(reply)
@@ -270,8 +273,9 @@ object GeolocatorKitBridge {
 
     private fun onCancelGetCurrentPosition(arguments: Map<String, Any?>?, reply: Reply) {
         val requestId = arguments?.get("requestId")?.toString() ?: ""
-        pendingCurrentPositionLocationClients[requestId]?.stopPositionUpdates()
-        pendingCurrentPositionLocationClients.remove(requestId)
+        pendingCurrentPositionLocationClients.remove(requestId)?.let {
+            geolocationManager.stopPositionUpdates(it)
+        }
         reply.success(null)
     }
 
@@ -300,7 +304,7 @@ object GeolocatorKitBridge {
     private fun requireContext(): Context =
         context ?: throw IllegalStateException("geolocator_kit is not attached to an engine")
 
-    // ── Streams (port of StreamHandlerImpl + LocationServiceHandlerImpl) ──
+    // Streams
 
     private var positionToken: Long = 0L
     private var positionClient: LocationClient? = null
@@ -311,9 +315,10 @@ object GeolocatorKitBridge {
 
     /** Returns 0 when the stream started, 2 for an unknown channel. */
     @JvmStatic
-    fun listen(token: Long, channel: String, argumentsJson: String): Int {
+    fun listen(token: Long, channelBytes: ByteArray, argumentsBytes: ByteArray): Int {
+        val channel = String(channelBytes, Charsets.UTF_8)
         val events = Reply(token)
-        val arguments = Reply.decodeMap(argumentsJson)
+        val arguments = Reply.decodeMap(String(argumentsBytes, Charsets.UTF_8))
         try {
             when (channel) {
                 CHANNEL_POSITIONS -> onListenPositions(token, arguments, events)
@@ -339,8 +344,8 @@ object GeolocatorKitBridge {
 
     private fun onListenPositions(token: Long, arguments: Map<String, Any?>?, events: Reply) {
         if (positionToken != 0L) disposePositionListeners(true)
-        positionToken = token
         if (!checkPermissionForReply(events)) return
+        positionToken = token
 
         val forceLocationManager = arguments?.get("forceLocationManager") as? Boolean ?: false
         val locationOptions = LocationOptions.parseArguments(arguments)
@@ -361,9 +366,11 @@ object GeolocatorKitBridge {
             }
             Log.d(TAG, "Geolocator position updates started using Android foreground service")
             service.setActivity(currentActivity())
-            service.startLocationService(forceLocationManager, locationOptions, events)
+            // Promote the service first: if the app lacks the foreground
+            // service permissions this throws and no updates are started.
             service.enableBackgroundMode(foregroundNotificationOptions)
             positionUsesService = true
+            service.startLocationService(forceLocationManager, locationOptions, events)
         } else {
             Log.d(TAG, "Geolocator position updates started")
             val client = geolocationManager.createLocationClient(
@@ -404,7 +411,9 @@ object GeolocatorKitBridge {
         val filter = IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION)
         filter.addAction(Intent.ACTION_PROVIDER_CHANGED)
         val receiver = LocationServiceStatusReceiver(events)
-        ContextCompat.registerReceiver(ctx, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
+        // PROVIDERS_CHANGED is a protected system broadcast, so the receiver
+        // need not be exported.
+        ContextCompat.registerReceiver(ctx, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         serviceStatusReceiver = receiver
         serviceStatusToken = token
     }

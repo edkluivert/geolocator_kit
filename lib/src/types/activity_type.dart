@@ -1,5 +1,3 @@
-// Ported from geolocator_apple 2.3.14 (MIT, Baseflow).
-
 /// Represents the possible iOS activity types.
 enum ActivityType {
   /// The location manager is being used specifically during vehicular

@@ -1,6 +1,5 @@
-// Ported from geolocator_android 5.0.3 (MIT, Baseflow). Satellite counts go
-// through `_toDouble` for the same JSON reason as `Position.fromMap`.
-// ignore_for_file: use_super_parameters
+// Satellite counts go through _toDouble for the same JSON reason as
+// Position.fromMap.
 
 import 'package:meta/meta.dart';
 
@@ -15,18 +14,18 @@ class AndroidPosition extends Position {
   const AndroidPosition({
     required this.satelliteCount,
     required this.satellitesUsedInFix,
-    required longitude,
-    required latitude,
-    required timestamp,
-    required accuracy,
-    required altitude,
-    required altitudeAccuracy,
-    required heading,
-    required headingAccuracy,
-    required speed,
-    required speedAccuracy,
+    required super.longitude,
+    required super.latitude,
+    required super.timestamp,
+    required super.accuracy,
+    required super.altitude,
+    required super.altitudeAccuracy,
+    required super.heading,
+    required super.headingAccuracy,
+    required super.speed,
+    required super.speedAccuracy,
     super.floor,
-    isMocked = false,
+    super.isMocked,
     super.hasAccuracy,
     super.hasAltitude,
     super.hasAltitudeAccuracy,
@@ -34,19 +33,7 @@ class AndroidPosition extends Position {
     super.hasHeadingAccuracy,
     super.hasSpeed,
     super.hasSpeedAccuracy,
-  }) : super(
-          longitude: longitude,
-          latitude: latitude,
-          timestamp: timestamp,
-          accuracy: accuracy,
-          altitude: altitude,
-          altitudeAccuracy: altitudeAccuracy,
-          heading: heading,
-          headingAccuracy: headingAccuracy,
-          speed: speed,
-          speedAccuracy: speedAccuracy,
-          isMocked: isMocked,
-        );
+  });
 
   /// If available it returns the number of GNSS satellites.
   ///

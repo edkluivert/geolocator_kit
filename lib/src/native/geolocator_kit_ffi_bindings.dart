@@ -5,15 +5,15 @@
 /// `android/src/main/cpp/geolocator_kit.cpp` (libgeolocator_kit.so), which
 /// call into `GeolocatorKitBridge.kt` over JNI.
 ///
-/// Every reply and every stream event comes back through ONE dispatcher
-/// pointer for the whole plugin, routed by token
-/// (docs/plugin_async_callbacks.md, "the dispatcher slot"). Native re-checks
-/// the framework's restart signal before every delivery and always fires on
-/// the main thread, so a hot restart never invokes a stale pointer.
+/// Every reply and stream event comes back through a single dispatcher
+/// pointer for the whole plugin, routed by token. Native checks the
+/// framework's restart signal before each delivery and always fires on the
+/// main thread, so a hot restart never hits a stale pointer.
 library;
 
 import 'dart:ffi';
 import 'dart:io' show Platform;
+import 'dart:math' show Random;
 
 import 'package:ffi/ffi.dart';
 
@@ -31,8 +31,8 @@ typedef _ListenD = int Function(int, Pointer<Utf8>, Pointer<Utf8>);
 typedef _CancelC = Int32 Function(Int64);
 typedef _CancelD = int Function(int);
 
-/// (token, eventType, payload) — the one C signature every native event
-/// arrives with. The payload is JSON.
+/// (token, eventType, payload): the C signature every native event arrives
+/// with. The payload is JSON.
 typedef _DispatchC = Void Function(Int64, Int32, Pointer<Utf8>);
 
 /// Signature for a handler registered under a token.
@@ -75,9 +75,9 @@ abstract final class GeolocatorKitFFIBindings {
       _invoke = lib.lookupFunction<_InvokeC, _InvokeD>('GeolocatorKitInvoke');
       _listen = lib.lookupFunction<_ListenC, _ListenD>('GeolocatorKitListen');
       _cancel = lib.lookupFunction<_CancelC, _CancelD>('GeolocatorKitCancel');
-      // Hand native the dispatcher address — once per Dart session. Native
-      // treats a new address as a new session and drops listeners left over
-      // from the previous one.
+      // Hand native the dispatcher address, once per Dart session. A second
+      // call tells native a new session started, so it stops listeners left
+      // over from the previous one.
       setDispatcher(_dispatchPtr.address);
       _loaded = true;
       geolocatorKitLog('GeolocatorKitFFIBindings loaded (${Platform.operatingSystem})');
@@ -89,7 +89,15 @@ abstract final class GeolocatorKitFFIBindings {
   // ── Dispatcher ─────────────────────────────────────────────────────────
 
   static final Map<int, GeolocatorKitEventHandler> _handlers = {};
-  static int _nextToken = 1;
+  // Tokens start at a random point per Dart session, so an event from a
+  // native listener that outlived a hot restart can never match a token
+  // handed out by the new session.
+  static int _nextToken = (Random().nextInt(1 << 20) + 1) << 20;
+
+  // One-shot handlers whose reply never comes (the request was cancelled
+  // after a time limit) are dropped after this long.
+  static const Duration _oneShotLifetime = Duration(minutes: 5);
+  static final Map<int, DateTime> _oneShotSince = {};
 
   static void _dispatch(int token, int type, Pointer<Utf8> payload) {
     final handler = _handlers[token];
@@ -100,15 +108,34 @@ abstract final class GeolocatorKitFFIBindings {
   static final Pointer<NativeFunction<_DispatchC>> _dispatchPtr =
       Pointer.fromFunction<_DispatchC>(_dispatch);
 
-  /// Registers [handler] and returns its token.
-  static int registerHandler(GeolocatorKitEventHandler handler) {
+  /// Registers [handler] and returns its token. [oneShot] handlers expect a
+  /// single reply and are dropped if none arrives for a few minutes.
+  static int registerHandler(GeolocatorKitEventHandler handler,
+      {bool oneShot = false}) {
+    _pruneOneShots();
     final token = _nextToken++;
     _handlers[token] = handler;
+    if (oneShot) _oneShotSince[token] = DateTime.now();
     return token;
   }
 
   /// Removes the handler registered under [token].
-  static void removeHandler(int token) => _handlers.remove(token);
+  static void removeHandler(int token) {
+    _handlers.remove(token);
+    _oneShotSince.remove(token);
+  }
+
+  static void _pruneOneShots() {
+    if (_oneShotSince.isEmpty) return;
+    final cutoff = DateTime.now().subtract(_oneShotLifetime);
+    final stale = [
+      for (final entry in _oneShotSince.entries)
+        if (entry.value.isBefore(cutoff)) entry.key,
+    ];
+    for (final token in stale) {
+      removeHandler(token);
+    }
+  }
 
   // ── Calls ──────────────────────────────────────────────────────────────
 

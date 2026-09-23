@@ -1,9 +1,8 @@
-// geolocator_kit — iOS FFI entry points.
+// iOS entry points for geolocator_kit.
 //
-// Resolved by Dart from the app binary (DynamicLibrary.process()). Every
-// reply and stream event goes back through ONE dispatcher slot registered
-// with the framework (docs/plugin_async_callbacks.md), always from the main
-// thread and never synchronously inside the Dart→native call.
+// Dart resolves these from the app binary. Every reply and stream event goes
+// back through one dispatcher slot registered with the framework, always from
+// the main thread and never from inside the Dart call itself.
 
 import CoreLocation
 import Foundation
@@ -13,8 +12,9 @@ private func dnLog(_ msg: String) { print("[GeolocatorKit] \(msg)") }
 
 // MARK: - Dispatcher slot
 
-// THE SLOT. Heap-allocated so its address never moves — the framework keeps
-// a pointer to it and writes 0 into it when a hot restart begins.
+// The dispatcher slot. Heap-allocated so its address never moves: the
+// framework keeps a pointer to it and writes 0 into it when a hot restart
+// begins.
 private let _dispatcherSlot: UnsafeMutablePointer<Int64> = {
     let p = UnsafeMutablePointer<Int64>.allocate(capacity: 1)
     p.pointee = 0
@@ -29,19 +29,24 @@ private typealias Dispatch = @convention(c) (Int64, Int32, UnsafePointer<CChar>)
 /// invoking a deleted pointer.
 func geolocatorKitFireToDart(token: Int64, type: Int32, payload: String) {
     DispatchQueue.main.async {
-        let addr = _dispatcherSlot.pointee   // read FRESH every time — never cache
-        guard addr != 0 else { return }      // hot restart happened → drop quietly
+        let addr = _dispatcherSlot.pointee   // read fresh every time, never cached
+        guard addr != 0 else { return }      // a hot restart happened, drop it
         payload.withCString { cStr in
             unsafeBitCast(addr, to: Dispatch.self)(token, type, cStr)
         }
     }
 }
 
+/// Called once per Dart session. A second call means the Dart side was
+/// restarted: nothing listens to the old tokens any more, so whatever they
+/// started is stopped first, before the new pointer is stored.
 @_cdecl("GeolocatorKitSetDispatcher")
 public func GeolocatorKitSetDispatcher(_ callbackPtr: Int64) {
-    let previous = _dispatcherSlot.pointee
+    if _slotRegistered {
+        GeolocatorKitPlugin.shared.resetAll()
+    }
     _dispatcherSlot.pointee = callbackPtr
-    if !_slotRegistered {                       // register with the framework, once
+    if !_slotRegistered {                       // register with the framework once
         _slotRegistered = true
         typealias RegFn = @convention(c) (UnsafeMutablePointer<Int64>) -> Void
         if let sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2),
@@ -50,10 +55,6 @@ public func GeolocatorKitSetDispatcher(_ callbackPtr: Int64) {
         } else {
             dnLog("DNRegisterAsyncDispatcherSlot not found; hot restart safety off")
         }
-    }
-    if previous != 0 && previous != callbackPtr {
-        // A fresh Dart session: nothing listens to the old tokens any more.
-        DispatchQueue.main.async { GeolocatorKitPlugin.shared.resetAll() }
     }
 }
 

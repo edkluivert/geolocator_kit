@@ -1,6 +1,5 @@
-// Ported from geolocator_platform_interface 4.3.0 (MIT, Baseflow). The only
-// change: numeric fields go through `_toDouble` because the native side hands
-// positions over as JSON, where an integral double (52.0) arrives as an int.
+// Same as geolocator_platform_interface. Numbers go through _toDouble
+// because the native side speaks JSON, where 52.0 arrives as the int 52.
 import 'package:meta/meta.dart';
 
 /// Contains detailed location information.

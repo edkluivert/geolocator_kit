@@ -1,6 +1,5 @@
-// Ported from geolocator_apple 2.3.14 GeolocationHandler.m (MIT, Baseflow).
-// One CLLocationManager streams updates, a second one serves one-shot
-// `getCurrentPosition` requests so the two never disturb each other.
+// One CLLocationManager streams updates and a second one answers one-shot
+// getCurrentPosition requests, so the two never disturb each other.
 
 import CoreLocation
 import Foundation
@@ -8,13 +7,18 @@ import Foundation
 private let kMaxLocationLifeTimeInSeconds: TimeInterval = 5.0
 
 final class GeolocationHandler: NSObject, CLLocationManagerDelegate {
+    private struct OneTimeRequest {
+        let id: String?
+        let result: GeolocatorResult
+        let error: GeolocatorErrorHandler
+    }
+
     private var locationManager: CLLocationManager?
     private var errorHandler: GeolocatorErrorHandler?
     private var oneTimeLocationManager: CLLocationManager?
-    private var oneTimeErrorHandler: GeolocatorErrorHandler?
-    private var currentLocationResultHandler: GeolocatorResult?
     private var listenerResultHandler: GeolocatorResult?
-    private var oneTimeRequestId: String?
+    // Every pending getCurrentPosition; one fix answers all of them.
+    private var oneTimeRequests: [OneTimeRequest] = []
 
     private func getLocationManager() -> CLLocationManager {
         if let manager = locationManager { return manager }
@@ -43,9 +47,7 @@ final class GeolocationHandler: NSObject, CLLocationManagerDelegate {
                          requestId: String?,
                          resultHandler: @escaping GeolocatorResult,
                          errorHandler: @escaping GeolocatorErrorHandler) {
-        oneTimeErrorHandler = errorHandler
-        currentLocationResultHandler = resultHandler
-        oneTimeRequestId = requestId
+        oneTimeRequests.append(OneTimeRequest(id: requestId, result: resultHandler, error: errorHandler))
 
         startUpdatingLocation(desiredAccuracy: desiredAccuracy,
                               distanceFilter: kCLDistanceFilterNone,
@@ -56,10 +58,16 @@ final class GeolocationHandler: NSObject, CLLocationManagerDelegate {
                               allowBackgroundLocationUpdates: false)
     }
 
-    /// Stops the pending one-shot request when `requestId` matches it (or
-    /// when no id is given), e.g. after a Dart-side time limit elapsed.
+    /// Drops the pending one-shot request with `requestId` (all of them when
+    /// no id is given), e.g. after a Dart-side time limit elapsed. The
+    /// manager stops once nothing is pending.
     func cancelOneTimeRequest(requestId: String?) {
-        if requestId == nil || requestId == oneTimeRequestId {
+        if let id = requestId {
+            oneTimeRequests.removeAll { $0.id == id }
+        } else {
+            oneTimeRequests.removeAll()
+        }
+        if oneTimeRequests.isEmpty {
             stopOneTimeLocationListening()
         }
     }
@@ -111,9 +119,7 @@ final class GeolocationHandler: NSObject, CLLocationManagerDelegate {
 
     func stopOneTimeLocationListening() {
         getOneTimeLocationManager().stopUpdatingLocation()
-        oneTimeErrorHandler = nil
-        currentLocationResultHandler = nil
-        oneTimeRequestId = nil
+        oneTimeRequests.removeAll()
     }
 
     func stopListening() {
@@ -125,7 +131,7 @@ final class GeolocationHandler: NSObject, CLLocationManagerDelegate {
     // MARK: CLLocationManagerDelegate
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        if listenerResultHandler == nil && currentLocationResultHandler == nil { return }
+        if listenerResultHandler == nil && oneTimeRequests.isEmpty { return }
 
         guard let mostRecentLocation = locations.last else { return }
         let ageInSeconds = -mostRecentLocation.timestamp.timeIntervalSinceNow
@@ -136,9 +142,9 @@ final class GeolocationHandler: NSObject, CLLocationManagerDelegate {
         }
 
         if manager == oneTimeLocationManager {
-            currentLocationResultHandler?(mostRecentLocation)
-            currentLocationResultHandler = nil
+            let pending = oneTimeRequests
             stopOneTimeLocationListening()
+            for request in pending { request.result(mostRecentLocation) }
         } else {
             listenerResultHandler?(mostRecentLocation)
         }
@@ -153,8 +159,11 @@ final class GeolocationHandler: NSObject, CLLocationManagerDelegate {
         }
 
         if manager == oneTimeLocationManager {
-            oneTimeErrorHandler?(GeolocatorError.locationUpdateFailure, error.localizedDescription)
+            let pending = oneTimeRequests
             stopOneTimeLocationListening()
+            for request in pending {
+                request.error(GeolocatorError.locationUpdateFailure, error.localizedDescription)
+            }
         } else {
             errorHandler?(GeolocatorError.locationUpdateFailure, error.localizedDescription)
         }

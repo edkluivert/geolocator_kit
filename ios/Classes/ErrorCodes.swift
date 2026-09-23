@@ -1,4 +1,4 @@
-// Ported from geolocator_apple 2.3.14 (MIT, Baseflow).
+// Error codes and status enums shared by the handlers.
 
 import CoreLocation
 
